@@ -1,0 +1,1 @@
+docker exec -it cachex001-cache-x-001-1 /bin/sh

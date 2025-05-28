@@ -1,0 +1,44 @@
+{
+  "name": "node-vue-x-001-backend",
+  "version": "1.0.0",
+  "description": "backend for node-vue-x-001",
+  "main": "dist/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "npx ts-node-dev src/main.ts",
+    "start": "node dist/index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/diksansys/node-vue-x-001.git"
+  },
+  "author": "shudhansh shekhar dubey",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/diksansys/node-vue-x-001/issues"
+  },
+  "homepage": "https://github.com/diksansys/node-vue-x-001#readme",
+  "devDependencies": {
+    "@types/bcrypt": "^5.0.2",
+    "@types/cookie-parser": "^1.4.8",
+    "@types/cors": "^2.8.18",
+    "@types/express": "^5.0.1",
+    "@types/jsonwebtoken": "^9.0.9",
+    "@types/ms": "^2.1.0",
+    "@types/node": "^22.15.16",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.8.3"
+  },
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "crypto": "^1.0.1",
+    "dotenv": "^16.5.0",
+    "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.14.3",
+    "ms": "^2.1.3",
+    "zod": "^3.24.4"
+  }
+}
