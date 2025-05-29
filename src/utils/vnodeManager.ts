@@ -1,6 +1,8 @@
 import VNode from "./vnode"
 import ConsistentHashRing from "./hashRing"
 
+const defaultShards = [ 'shardA', 'shardB', 'shardC', 'shardD' ];
+
 export default class VNodeManager 
 {
     vnodes: Map<string, VNode>
@@ -11,20 +13,27 @@ export default class VNodeManager
 
     constructor() {
         this.vnodes = new Map()
-        this.shards = new Map()
         this.hashRing = new ConsistentHashRing()
+
+        this.shards = new Map()
+        for (const shard of defaultShards) {
+            this.shards.set(shard, new Set())
+        }
     }
 
     addVNode(vnodeKey: string, shardKey: string, value?: VNode) 
     {   
         if (!this.shards.has(shardKey)) {
-            console.error("No shard exists by key : " + shardKey)
-            return;
+            throw new Error("No shard exists by key : " + shardKey)
         }
 
+        if (!vnodeKey) {
+            throw new Error("Invalid key : " + vnodeKey)
+        }
+
+
         if (this.vnodes.has(vnodeKey) && !value) {
-            console.info("A vnode already exists by key : " + vnodeKey)
-            return;
+            throw new Error("A vnode already exists by key : " + vnodeKey)
         }
 
         // Add vnodeKey to vnodes list
@@ -76,7 +85,10 @@ export default class VNodeManager
     }
     
     getNextVNodeKeysForReplication(cacheKey: string, replicationCount: number) 
-    {
+    {   
+        if (this.hashRing.sortedHashList.length === 0) {
+            return []
+        }
         return this.hashRing.getImmediateNextNPoints(cacheKey, replicationCount);
     }
 }

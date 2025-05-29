@@ -55,4 +55,9 @@ export default class VNode {
     {
         this.storage.delete(cacheKey)
     }
+
+    listStorage() 
+    {
+        return this.storage
+    }
 }
