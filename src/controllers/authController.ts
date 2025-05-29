@@ -4,7 +4,7 @@ import bcrypt from "bcrypt"
 import dotenv from "dotenv"
 import ms from "ms"
 import z from "zod"
-import authHelper from "../helpers/authHelper"
+import authHelper from "../services/authHelper"
 
 dotenv.config()
 

@@ -1,7 +1,8 @@
 import { Request, Response, NextFunction } from "express"
 import cacheManager from "../utils/cacheManager"
 
-const handleSaveCache = (req: Request, res: Response, next: NextFunction) => {
+const handleSaveCache = (req: Request, res: Response, next: NextFunction) => 
+{
     const {key, value} = req.body
 
     if (!key || !value) {
@@ -10,11 +11,20 @@ const handleSaveCache = (req: Request, res: Response, next: NextFunction) => {
 
     cacheManager.add(key, value)
 
-    res.status(200).json({ success: true, data: getCompleteView()})
+    res.status(200).json({ message: "saved", success: true, data: getCompleteView()})
 }
 
-const handleRemoveCache = (req: Request, res: Response) => {
+const handleRemoveCache = (req: Request, res: Response) => 
+{
+    const {key} = req.body
 
+    if (!key) {
+        throw new Error("Please check input")
+    }
+
+    cacheManager.remove(key)
+
+    res.status(201).json({ message: "removed", success: true, data: getCompleteView()})
 }
 
 const handleSaveVnode = (req: Request, res: Response, next: NextFunction) => 
@@ -34,7 +44,8 @@ const handleSaveVnode = (req: Request, res: Response, next: NextFunction) =>
     }
 }
 
-const handleRemoveVnode = (req: Request, res: Response, next: NextFunction) => {
+const handleRemoveVnode = (req: Request, res: Response, next: NextFunction) => 
+{
     const {vnodeKey, shardKey} = req.body
 
     cacheManager.vnodeManager.deleteVNode(vnodeKey);

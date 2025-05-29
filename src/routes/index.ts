@@ -4,6 +4,7 @@ import loginRoutes from "./login"
 import { verifyAccessToken } from "../middlewares/authMiddleware"
 import cacheController from "../controllers/cacheController"
 import { Request, Response, NextFunction } from "express"
+import quizController from "../controllers/quizController"
 
 const router = express.Router()
 
@@ -11,11 +12,16 @@ const router = express.Router()
 // router.use('/api/v1', verifyAccessToken, homeRoutes)
 // router.use('/api/auth', loginRoutes)
 
+router.use("/user/:id/quiz", )
+
 router.get('/', (req: Request, res: Response) => { res.status(200).json({"hello": "world"}) })
 
 router.post('/cache/add', cacheController.handleSaveCache)
 router.post('/cache/remove', cacheController.handleRemoveCache)
 router.post('/vnode/add', cacheController.handleSaveVnode)
 router.post('/vnode/remove', cacheController.handleRemoveVnode)
+
+router.post("quiz/:id/answers", quizController.handleUserSubmittedQuizAnswers)
+router.get("quiz/:id/answers", quizController.handleUserRequestedQuizAnswers)
 
 export default router

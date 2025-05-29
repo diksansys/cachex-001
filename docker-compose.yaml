@@ -4,7 +4,7 @@ services:
   cache-x-001:
     build:
       context: .
-      dockerfile: ./_infrastructure/Dockerfile
+      dockerfile: ./_infrastructure/app/Dockerfile
     ports: 
       - "3200:3200"
     volumes:
@@ -13,3 +13,21 @@ services:
     working_dir: /app
     environment:
       - NODE_ENV=development
+
+  cache-x-001-redis:
+    build:
+      context: .
+      dockerfile: ./_infrastructure/redis/Dockerfile
+    ports:
+      - "6379:6379"
+    environment:
+      - NODE_ENV=development
+
+  cache-x-001-kafka:
+    build:
+      context: .
+      dockerfile: ./_infrastructure/kafka/Dockerfile
+    ports:
+    - "9092:9092"
+    environment:
+    - NODE_ENV=development

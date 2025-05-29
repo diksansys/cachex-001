@@ -1,5 +1,5 @@
 import express, { NextFunction, Request, Response } from "express"
-import authHelper from "../helpers/authHelper";
+import authHelper from "../services/authHelper";
 
 export const verifyAccessToken = (req: Request, res: Response, next: NextFunction) => {
     try {
