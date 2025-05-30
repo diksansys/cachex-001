@@ -1,45 +1,56 @@
-import { inflowHandler } from "./inflowHandler";
+import { adapterRegistry } from "./adapterRegistry";
+
+/**
+ * Quiz Service
+ * Handles quiz answer submissions and caching.
+ *
+ * @module quizService
+ */
 
 export const quizService = {
 
   submitAnswers: async ({ userId, quizId, answers }) => {
     const cacheKey = `user:${userId}:quiz:${quizId}:answer`;
 
-    try {
-        if (inflowHandler.getRedisAdapter().isRedisUp()) {
-            await inflowHandler.getRedisAdapter().set(cacheKey, JSON.stringify(answers));
+    try { // Attempt to cache the answers
+        if (await adapterRegistry.cache.primary.isUp()) {
+            await adapterRegistry.cache.primary.set(cacheKey, JSON.stringify(answers));
         } else {
             console.warn("Redis unavailable, skipping cache");
         }
     } catch (err) {
-        console.error("Cache creation failed", err)
-
-         if (inflowHandler.getDbAdapter().isDbUp()) {
-            await inflowHandler.getDbAdapter().save({
-                dataType: "QUIZ_ANSWERS",
-                data: { userId, quizId, answers },
-            });
+        // If cache creation fails, fall back to DB
+        // Check if DB is available before falling back
+        // If DB is available, save the answers there
+        // If DB is not available, log an error
+        console.warn("Falling back to DB for cache creation", err);
+        if (await adapterRegistry.db.primary.isUp()) {
+            console.warn("Falling back to DB for cache creation");
+            await adapterRegistry.db.primary.create({ userId, quizId, answers }, "userQuizes");
         } else {
             console.error ("Cache and DB both down");
         }
     }
 
-    if (inflowHandler.getKafkaAdapter().isKafkaUp()) {
-      await inflowHandler.getKafkaAdapter().publish({
+    // Publish the answer submission event to Kafka
+    // If Kafka is down, log a warning and save to DB as a fallback
+    if (await adapterRegistry.writeStream.primary.isUp()) {
+      await adapterRegistry.writeStream.primary.publish({
         eventType: "QUIZ_ANSWER_SUBMISSION",
         data: { userId, quizId, answers },
         eventExecutionTime: "immediate",
       });
     } else {
       console.warn("Kafka unavailable, falling back to DB");
-
-      if (inflowHandler.getDbAdapter().isDbUp()) {
-        await inflowHandler.getDbAdapter().save({
-          dataType: "QUIZ_ANSWERS",
-          data: { userId, quizId, answers },
-        });
+      // If Kafka is down, check if DB is available
+      // If DB is available, save the answers there
+      // If DB is not available, log an error
+      if (await adapterRegistry.db.primary.isUp()) {
+            console.warn("Falling back to DB as primary write stream is down");
+            // Save to DB as a fallback
+            await adapterRegistry.db.primary.create({ userId, quizId, answers }, "userQuizes");
       } else {
-        throw new Error("Kafka and DB both down");
+          console.error ("Cache and DB both down");
       }
     }
   },

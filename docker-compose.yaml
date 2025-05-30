@@ -31,3 +31,10 @@ services:
     - "9092:9092"
     environment:
     - NODE_ENV=development
+
+  cache-x-001-zookeeper:
+    build:
+      context: .
+      dockerfile: ./_infrastructure/zookeeper/Dockerfile
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
