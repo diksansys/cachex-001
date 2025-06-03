@@ -3,22 +3,37 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-export const primaryWriteStreamAdapter = {
-    client: null as any,
-    
-    async connect () {
+class PrimaryWriteStreamAdapter {
+    /**
+     * Primary WriteStream adapter: Kafka based
+     */
+    private client: any = null
+
+    /**
+     * Kafka producer instance
+     */
+    private producer: kafkaClient.Producer | null = null;
+
+    async connect() {
         try {
             this.client = new kafkaClient.KafkaClient({
                 kafkaHost: process.env.KAFKA_HOST,
                 connectTimeout: 10000, // 10 seconds
                 requestTimeout: 30000, // 30 seconds
-                autoConnect: true,
-                retryOptions: {
-                    retries: 5,
-                    factor: 2, // Exponential backoff
-                    minTimeout: 1000, // 1 second
-                    maxTimeout: 3000 // 3 seconds
-                }
+                autoConnect: true
+            });
+
+            this.producer = new kafkaClient.Producer(this.client, {
+                requireAcks: 1,
+                partitionerType: 2
+            });
+
+            this.producer.on('ready', () => {
+                console.info("WriteStream producer is ready");
+            })
+
+            this.producer.on('error', (err: Error) => {
+                console.error("Error in WriteStream producer", err);
             });
 
             this.client.on('ready', () => {
@@ -28,12 +43,26 @@ export const primaryWriteStreamAdapter = {
             this.client.on('error', (err: any) => {
                 console.error("Error connecting to WriteStream service", err);
             });
+
         } catch (error) {
             console.error("Error connecting to WriteStream service", error)
         }
-    },
+    }
 
-    async isServiceUp () {
+    async isConnected() {
+        try {
+            if (this.client) {
+                // Check if the client is connected
+                return this.client.ready;
+            }
+            return false;
+        } catch (err) {
+            console.error("Error checking WriteStream connection", err);
+            return false;
+        }
+    }
+
+    async isServiceUp() {
         try {
             if (this.client) {
                 // Check if the client is connected
@@ -44,40 +73,38 @@ export const primaryWriteStreamAdapter = {
             console.error("Error checking WriteStream service status", err);
             return false;
         }
-    },
+    }
 
-    async publish (topic: string, data: any) {
+    async publish(topic: string, data: any) {
+
+        if (!topic || !data) {
+            throw new Error("Topic and data must be provided");
+        }
 
         if (!this.client) {
             throw new Error("WriteStream client is not initialized");
         }
 
+        if (!this.producer) {
+            throw new Error("WriteStream producer is not initialized");
+        }
+
+        const payloads = [{ topic: topic, messages: JSON.stringify(data) }]
+
         return new Promise((resolve, reject) => {
-            const producer = new kafkaClient.Producer(this.client);
-
-            producer.on('ready', () => {
-                const payloads = { topic: topic, messages: JSON.stringify(data) }
-                producer.send(payloads, (err: Error, data: any) => {
-                    if (err) {
-                        console.error("Could not stream the topic")
-                        reject(err)
-                    } else {
-                        resolve("Message stream is completed")
-                        console.info("Message stream is completed")
-                    }
-                })
+            this.producer?.send(payloads, (err: Error, data: any) => {
+                if (err) {
+                    console.error("Could not stream the topic")
+                    reject(err)
+                } else {
+                    resolve("Message stream is completed")
+                    console.info("Message stream is completed")
+                }
             })
-
-            producer.on('error', (err: Error) => {
-                console.error("Error in WriteStream producer", err);
-                reject(err);
-            });
         })
-        
-    },
+    }
 
-    async subscribe (topic: string, callback: (message: any) => void) { 
-        
+    async subscribe(topic: string, callback: (message: any) => void) {
         if (!this.client) {
             throw new Error("WriteStream client is not initialized");
         }
@@ -101,5 +128,6 @@ export const primaryWriteStreamAdapter = {
             console.error("Error in WriteStream consumer", err);
         });
     }
-
 }
+
+export const primaryWriteStreamAdapter = new PrimaryWriteStreamAdapter();

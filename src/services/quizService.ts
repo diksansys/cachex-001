@@ -1,4 +1,11 @@
 import { adapterRegistry } from "./adapterRegistry";
+import mongoose from 'mongoose';
+
+interface QuizAnswer {
+  userId: mongoose.Types.ObjectId;
+  quizId: mongoose.Types.ObjectId;
+  answers: Record<string, string[]>;
+}
 
 /**
  * Quiz Service
@@ -9,12 +16,12 @@ import { adapterRegistry } from "./adapterRegistry";
 
 export const quizService = {
 
-  submitAnswers: async ({ userId, quizId, answers }) => {
-    const cacheKey = `user:${userId}:quiz:${quizId}:answer`;
-
+  submitAnswers: async (answer: QuizAnswer) => {
+    const cacheKey = `user:${answer.userId}:quiz:${answer.quizId}:answer`;
+    console.log(await adapterRegistry.cache.primary.isUp());
     try { // Attempt to cache the answers
         if (await adapterRegistry.cache.primary.isUp()) {
-            await adapterRegistry.cache.primary.set(cacheKey, JSON.stringify(answers));
+            await adapterRegistry.cache.primary.set(cacheKey, JSON.stringify(answer));
         } else {
             console.warn("Redis unavailable, skipping cache");
         }
@@ -26,7 +33,7 @@ export const quizService = {
         console.warn("Falling back to DB for cache creation", err);
         if (await adapterRegistry.db.primary.isUp()) {
             console.warn("Falling back to DB for cache creation");
-            await adapterRegistry.db.primary.create({ userId, quizId, answers }, "userQuizes");
+            await adapterRegistry.db.primary.create(answer, "UserQuiz");
         } else {
             console.error ("Cache and DB both down");
         }
@@ -35,11 +42,10 @@ export const quizService = {
     // Publish the answer submission event to Kafka
     // If Kafka is down, log a warning and save to DB as a fallback
     if (await adapterRegistry.writeStream.primary.isUp()) {
-      await adapterRegistry.writeStream.primary.publish({
-        eventType: "QUIZ_ANSWER_SUBMISSION",
-        data: { userId, quizId, answers },
-        eventExecutionTime: "immediate",
-      });
+      await adapterRegistry.writeStream.primary.publish(
+        "quizAnswers",
+        answer
+      );
     } else {
       console.warn("Kafka unavailable, falling back to DB");
       // If Kafka is down, check if DB is available
@@ -48,11 +54,19 @@ export const quizService = {
       if (await adapterRegistry.db.primary.isUp()) {
             console.warn("Falling back to DB as primary write stream is down");
             // Save to DB as a fallback
-            await adapterRegistry.db.primary.create({ userId, quizId, answers }, "userQuizes");
+            await adapterRegistry.db.primary.create(answer, "UserQuiz");
       } else {
           console.error ("Cache and DB both down");
       }
     }
   },
   
+  submitAnswersToDB: async (answer: QuizAnswer) => {
+    // Directly save the quiz answers to the database
+    if (await adapterRegistry.db.primary.isUp()) {
+      await adapterRegistry.db.primary.create(answer, "UserQuiz");
+    } else {
+      console.error("Database is not available, cannot save quiz answers");
+    }
+  }
 };

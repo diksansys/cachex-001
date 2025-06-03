@@ -1,9 +1,9 @@
 import express from "express";
-import connectDB from "./config/dbConnect";
 import dotenv from "dotenv";
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import routes from "./routes/index";
+import { startupManager } from "./services/startupManager";
 
 // Load env variables
 dotenv.config();
@@ -26,12 +26,13 @@ app.use(routes);
 // Start the app only after DB connection
 (async () => {
   try {
-    // Connect with DB
-    await connectDB();
+    // Initialize startup manager
+    await startupManager.initialize();
+    console.log("✅ All services initialized successfully");
 
     // Start the server
     app.listen(port, () => {
-      console.log(`✅ cachex-001 running on port: ${port}`);
+      console.log(`✅ App is up and running on port : ${port}`);
     });
   } catch (err) {
     console.error("❌ Failed to start server:", err);

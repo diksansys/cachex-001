@@ -13,6 +13,11 @@ services:
     working_dir: /app
     environment:
       - NODE_ENV=development
+    networks:
+      - cachex-001-network
+    depends_on:
+      - cache-x-001-kafka
+      - cache-x-001-redis
 
   cache-x-001-redis:
     build:
@@ -22,15 +27,26 @@ services:
       - "6379:6379"
     environment:
       - NODE_ENV=development
+    networks:
+      - cachex-001-network
 
   cache-x-001-kafka:
     build:
       context: .
       dockerfile: ./_infrastructure/kafka/Dockerfile
     ports:
-    - "9092:9092"
+      - "9092:9092"
     environment:
-    - NODE_ENV=development
+      - NODE_ENV=development
+      - KAFKA_BROKER_ID=1
+      - KAFKA_ZOOKEEPER_CONNECT=cache-x-001-zookeeper:2181
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://cache-x-001-kafka:9092
+      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT
+      - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
+    networks:
+      - cachex-001-network
+    depends_on:
+      - cache-x-001-zookeeper
 
   cache-x-001-zookeeper:
     build:
@@ -38,3 +54,11 @@ services:
       dockerfile: ./_infrastructure/zookeeper/Dockerfile
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
+    ports:
+      - "2181:2181"
+    networks:
+      - cachex-001-network
+
+networks:
+  cachex-001-network:
+    driver: bridge

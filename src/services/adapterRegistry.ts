@@ -7,10 +7,13 @@ export const adapterRegistry = {
         primary: {
             init: async () => {
                 // Placeholder for DB connection initialization
-                await primaryDbAdapter.connect();
-                console.log("DB connection initialized");
+                const isConnected = await primaryDbAdapter.isConnected();
+                if (!isConnected) {
+                    await primaryDbAdapter.connect();
+                } 
             },
             isUp: async () => {
+                await adapterRegistry.db.primary.init(); // Ensure connection is initialized before checking
                 // Placeholder for DB connection check
                 return primaryDbAdapter.isServiceUp();
             },
@@ -29,10 +32,13 @@ export const adapterRegistry = {
         primary: {
             init: async () => {
                 // Placeholder for Redis connection initialization
-                await primaryCacheAdapter.connect();
-                console.log("Redis connection initialized");
+                const isConnected = await primaryCacheAdapter.isConnected();
+                if (!isConnected) {
+                    await primaryCacheAdapter.connect();
+                } 
             },
             isUp: async () => {
+                await adapterRegistry.cache.primary.init(); // Ensure connection is initialized before checking
                 // Placeholder for Redis connection check
                 return await primaryCacheAdapter.isServiceUp();
             },
@@ -68,10 +74,13 @@ export const adapterRegistry = {
         primary: {
             init: async () => {
                 // Placeholder for Kafka connection initialization
-                await primaryWriteStreamAdapter.connect();
-                console.log("Kafka connection initialized");
+                const isConnected = await primaryWriteStreamAdapter.isConnected();
+                if (!isConnected) {
+                    await primaryWriteStreamAdapter.connect();
+                } 
             },
             isUp: async () => {
+                await adapterRegistry.writeStream.primary.init(); // Ensure connection is initialized before checking
                 // Placeholder for Kafka connection check
                 return primaryWriteStreamAdapter.isServiceUp();
             },

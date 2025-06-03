@@ -1,1 +1,1 @@
-FROM apache/kafka:latest
+FROM confluentinc/cp-kafka:latest

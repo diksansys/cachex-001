@@ -13,7 +13,7 @@ const userQuizSchema = new Schema({
         required: true,
         index: true
     },
-    answers: {
+    answers: { // { QuestionID: [ answer1, answer2 ], ..so on }
         type: mongoose.Schema.Types.Mixed,
         required: false
     }, 
