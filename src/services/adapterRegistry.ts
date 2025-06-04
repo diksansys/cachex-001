@@ -25,6 +25,9 @@ export const adapterRegistry = {
             },
             delete: async (dataId: any) => {
                 return primaryDbAdapter.delete(dataId)
+            },
+            findOne: async (query: any, doc: string) => {
+                return primaryDbAdapter.get(query, doc);
             }
         }
     },

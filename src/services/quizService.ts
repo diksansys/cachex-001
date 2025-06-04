@@ -14,14 +14,17 @@ interface QuizAnswer {
  * @module quizService
  */
 
-export const quizService = {
+class QuizService {
 
-  submitAnswers: async (answer: QuizAnswer) => {
-    const cacheKey = `user:${answer.userId}:quiz:${answer.quizId}:answer`;
-    console.log(await adapterRegistry.cache.primary.isUp());
+  private getCacheKey (userId: mongoose.Types.ObjectId, quizId: mongoose.Types.ObjectId) {
+    return `user:${userId}:quiz:${quizId}:answer`;
+  }
+
+  async submitAnswers (answer: QuizAnswer) {
+    // Validate the answer structure
     try { // Attempt to cache the answers
         if (await adapterRegistry.cache.primary.isUp()) {
-            await adapterRegistry.cache.primary.set(cacheKey, JSON.stringify(answer));
+            await adapterRegistry.cache.primary.set(this.getCacheKey(answer.userId, answer.quizId), JSON.stringify(answer));
         } else {
             console.warn("Redis unavailable, skipping cache");
         }
@@ -59,9 +62,47 @@ export const quizService = {
           console.error ("Cache and DB both down");
       }
     }
-  },
+  }
+
+  async fetchAnswers (userId: mongoose.Types.ObjectId, quizId: mongoose.Types.ObjectId) {
+    
+    // Attempt to fetch from cache first
+    if (await adapterRegistry.cache.primary.isUp()) {
+      const cachedAnswer = await adapterRegistry.cache.primary.get(this.getCacheKey(userId, quizId));
+      if (cachedAnswer) {
+        return JSON.parse(cachedAnswer) as QuizAnswer;
+      } else {
+        console.warn("No cached answer found, fetching from DB");
+        
+        // If cache is not available or no cached answer found, fetch from DB
+        return await this.fetchAnswersFromDB(userId, quizId);
+      }
+    } else {
+      console.warn("Redis unavailable, skipping cache fetch");
+
+      // If cache is not available or no cached answer found, fetch from DB
+      return await this.fetchAnswersFromDB(userId, quizId);
+    }
+    
+  }
+
+  async fetchAnswersFromDB (userId: mongoose.Types.ObjectId, quizId: mongoose.Types.ObjectId) {
+    if (await adapterRegistry.db.primary.isUp()) {
+      const answer = await adapterRegistry.db.primary.findOne({
+        userId: userId,
+        quizId: quizId
+      }, "UserQuiz");
+      if (answer) {
+        // Optionally, cache the answer after fetching from DB
+        await adapterRegistry.cache.primary.set(this.getCacheKey(userId, quizId), JSON.stringify(answer));
+        return answer as QuizAnswer;    
+      }
+    }
+    console.error("Database is not available, cannot fetch quiz answers");
+    return null; // Return null if no answer found
+  }
   
-  submitAnswersToDB: async (answer: QuizAnswer) => {
+  async submitAnswersToDB (answer: QuizAnswer) {
     // Directly save the quiz answers to the database
     if (await adapterRegistry.db.primary.isUp()) {
       await adapterRegistry.db.primary.create(answer, "UserQuiz");
@@ -69,4 +110,6 @@ export const quizService = {
       console.error("Database is not available, cannot save quiz answers");
     }
   }
-};
+}
+
+export const quizService = new QuizService();

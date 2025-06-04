@@ -60,9 +60,43 @@ const handleUserSubmittedQuizAnswers = async (req: Request, res: Response) =>
    res.status(response.statusCode).json({success: response.success, message: response.message, data: response.data})
 }
 
-const handleUserRequestedQuizAnswers = (req: Request, res: Response) => 
+const handleUserRequestedQuizAnswers = async (req: Request, res: Response) => 
 {
+    const response = {
+        success: false,
+        statusCode: 500,
+        message: "Something went wrong",
+        data: {}
+    }
 
+   try {
+        const quizId = deterministicObjectId(req.params.id)
+        const userId = getUserIdFromToken(req)
+
+        if (!userId) {
+            throw new Error("User is not logged in"); 
+        }
+        else if (!quizId) {
+            throw new Error("Quiz ID is required");
+        }
+        else {
+            // Validate answers structur
+            const quizData = await quizService.fetchAnswers(userId, quizId)
+
+            response.success = true
+            response.statusCode = 200
+            response.message = "Answers fetched successfully"
+            response.data = quizData || {}
+        }
+   } catch (err: any) {
+        console.error("ERROR! Answer retrival error", err);
+        response.message = err.message || "An error occurred while fetching answers";
+        response.success = false
+        response.data = {}
+        response.statusCode = 500
+   }
+
+   res.status(response.statusCode).json({success: response.success, message: response.message, data: response.data})
 }
 
 export default {

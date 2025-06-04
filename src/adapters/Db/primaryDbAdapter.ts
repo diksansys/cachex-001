@@ -96,20 +96,19 @@ class PrimaryDbAdapter {
         }
     }
 
-    async get(dataId: any) {
-        if (!dataId) {
-            console.error("Invalid data provided", dataId);
-            throw new Error("Error! Invalid data provided");
+    async get(query: any, doc: string) {
+        if (!query || !doc) {
+            console.error("Invalid query or document provided");
+            throw new Error("Error! Invalid query or document provided");
         }
-
         try {
-            const Model = this.getModel("UserQuiz");
-            const docInstance = await Model.findById(dataId);
-            if (!docInstance) {
-                console.error("Document not found", dataId);
-                throw new Error("Error! Document not found");
+            const Model = this.getModel(doc);
+            const docs = await Model.find(query);
+            if (!docs || docs.length === 0) {
+                console.error("No documents found for query", query);
+                throw new Error("Error! No documents found for query");
             }
-            return docInstance;
+            return docs;
         } catch (err) {
             console.error("ERROR! Unable to get data from DB", err);
             throw new Error("Error! Unable to get data from DB");
