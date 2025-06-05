@@ -1,115 +1,177 @@
 import { adapterRegistry } from "./adapterRegistry";
-import mongoose from 'mongoose';
+import mongoose from "mongoose";
 
 interface QuizAnswer {
-  userId: mongoose.Types.ObjectId;
-  quizId: mongoose.Types.ObjectId;
-  answers: Record<string, string[]>;
+	userId: mongoose.Types.ObjectId;
+	quizId: mongoose.Types.ObjectId;
+	answers: Record<string, string[]>;
 }
-
 /**
  * Quiz Service
  * Handles quiz answer submissions and caching.
  *
  * @module quizService
  */
-
 class QuizService {
+	/**
+	 * API: Quiz Answer Submission/Creation
+	 *
+	 * Submits the provided quiz answers to the appropriate storage mediums and publishes an event.
+	 * Performs caching, database fallback, and publishes to a Kafka stream.
+	 */
+	public async submitAnswers(answer: QuizAnswer): Promise<void> {
+		// WRITE-BEHIND STRATEGY for answer submission
+		try {
+			// Attempt to cache the answers
+			const isCacheAvailable = await adapterRegistry.cache.primary.isUp();
+			if (isCacheAvailable) {
+				await this.submitAnswersToCache(answer);
+			} else {
+				console.warn("Redis unavailable, skipping cache");
+				throw new Error("Cannot cache quiz answers");
+			}
+		} catch (err) {
+			console.warn("Falling back to DB for cache creation", err);
 
-  private getCacheKey (userId: mongoose.Types.ObjectId, quizId: mongoose.Types.ObjectId) {
-    return `user:${userId}:quiz:${quizId}:answer`;
-  }
+			const isDbAvailable = await adapterRegistry.db.primary.isUp();
+			if (isDbAvailable) {
+				await this.submitAnswersToDB(answer);
+			} else {
+				console.error("Cache and DB both down. Cannot submit quiz answers.");
+			}
+		}
 
-  async submitAnswers (answer: QuizAnswer) {
-    // Validate the answer structure
-    try { // Attempt to cache the answers
-        if (await adapterRegistry.cache.primary.isUp()) {
-            await adapterRegistry.cache.primary.set(this.getCacheKey(answer.userId, answer.quizId), JSON.stringify(answer));
-        } else {
-            console.warn("Redis unavailable, skipping cache");
-        }
-    } catch (err) {
-        // If cache creation fails, fall back to DB
-        // Check if DB is available before falling back
-        // If DB is available, save the answers there
-        // If DB is not available, log an error
-        console.warn("Falling back to DB for cache creation", err);
-        if (await adapterRegistry.db.primary.isUp()) {
-            console.warn("Falling back to DB for cache creation");
-            await adapterRegistry.db.primary.create(answer, "UserQuiz");
-        } else {
-            console.error ("Cache and DB both down");
-        }
-    }
+		// Publish the answer submission event to Kafka
+		const isKafkaAvailable = await adapterRegistry.writeStream.primary.isUp();
+		if (isKafkaAvailable) {
+			await this.streamAnswersToKafka(answer);
+		} else {
+			console.warn("Kafka unavailable, falling back to DB");
+			const isDbAvailable = await adapterRegistry.db.primary.isUp();
+			if (isDbAvailable) {
+				await this.submitAnswersToDB(answer);
+			} else {
+				console.error("Cache and DB both down");
+			}
+		}
+	}
 
-    // Publish the answer submission event to Kafka
-    // If Kafka is down, log a warning and save to DB as a fallback
-    if (await adapterRegistry.writeStream.primary.isUp()) {
-      await adapterRegistry.writeStream.primary.publish(
-        "quizAnswers",
-        answer
-      );
-    } else {
-      console.warn("Kafka unavailable, falling back to DB");
-      // If Kafka is down, check if DB is available
-      // If DB is available, save the answers there
-      // If DB is not available, log an error
-      if (await adapterRegistry.db.primary.isUp()) {
-            console.warn("Falling back to DB as primary write stream is down");
-            // Save to DB as a fallback
-            await adapterRegistry.db.primary.create(answer, "UserQuiz");
-      } else {
-          console.error ("Cache and DB both down");
-      }
-    }
-  }
+	/**
+	 * API: Quiz Answer Query
+	 *
+	 * @param userId
+	 * @param quizId
+	 */
+	public async fetchAnswers(
+		userId: mongoose.Types.ObjectId,
+		quizId: mongoose.Types.ObjectId
+	) {
+		// 1.1 CACHE RETRIEVAL
+		const isCacheAvailable = await adapterRegistry.cache.primary.isUp();
+		if (isCacheAvailable) {
+			const cachedAnswer = await this.fetchAnswersFromCache(userId, quizId);
+			if (cachedAnswer) {
+				return cachedAnswer;
+			} else {
+				console.warn("No cached answer found, fetching from DB");
 
-  async fetchAnswers (userId: mongoose.Types.ObjectId, quizId: mongoose.Types.ObjectId) {
-    
-    // Attempt to fetch from cache first
-    if (await adapterRegistry.cache.primary.isUp()) {
-      const cachedAnswer = await adapterRegistry.cache.primary.get(this.getCacheKey(userId, quizId));
-      if (cachedAnswer) {
-        return JSON.parse(cachedAnswer) as QuizAnswer;
-      } else {
-        console.warn("No cached answer found, fetching from DB");
-        
-        // If cache is not available or no cached answer found, fetch from DB
-        return await this.fetchAnswersFromDB(userId, quizId);
-      }
-    } else {
-      console.warn("Redis unavailable, skipping cache fetch");
+				// 1.2 DB RETRIEVAL ( NO CACHE FOUND FALLBACK )
+				const isDbAvailable = await adapterRegistry.db.primary.isUp();
+				if (isDbAvailable) {
+					return await this.fetchAnswersFromDB(userId, quizId);
+				}
 
-      // If cache is not available or no cached answer found, fetch from DB
-      return await this.fetchAnswersFromDB(userId, quizId);
-    }
-    
-  }
+				console.error("Cache and Database both are not available");
+				throw new Error("Cannot fetch quiz answers");
+			}
+		}
+		// 2.1 DB RETRIEVAL ( CACHE UNAVAILABLE FALLBACK )
+		else {
+			console.warn("Redis unavailable, skipping cache fetch");
 
-  async fetchAnswersFromDB (userId: mongoose.Types.ObjectId, quizId: mongoose.Types.ObjectId) {
-    if (await adapterRegistry.db.primary.isUp()) {
-      const answer = await adapterRegistry.db.primary.findOne({
-        userId: userId,
-        quizId: quizId
-      }, "UserQuiz");
-      if (answer) {
-        // Optionally, cache the answer after fetching from DB
-        await adapterRegistry.cache.primary.set(this.getCacheKey(userId, quizId), JSON.stringify(answer));
-        return answer as QuizAnswer;    
-      }
-    }
-    console.error("Database is not available, cannot fetch quiz answers");
-    return null; // Return null if no answer found
-  }
-  
-  async submitAnswersToDB (answer: QuizAnswer) {
-    // Directly save the quiz answers to the database
-    if (await adapterRegistry.db.primary.isUp()) {
-      await adapterRegistry.db.primary.create(answer, "UserQuiz");
-    } else {
-      console.error("Database is not available, cannot save quiz answers");
-    }
-  }
+			const isDbAvailable = await adapterRegistry.db.primary.isUp();
+			if (isDbAvailable) {
+				return await this.fetchAnswersFromDB(userId, quizId);
+			}
+
+			// 2.2 DB UNAVAILABLE FALLBACK (ALL SOURCES BLOCKED)
+			console.error("Cache and Database both are not available");
+			throw new Error("Cannot fetch quiz answers");
+		}
+	}
+
+	/**
+	 * Kafka Consumer: Submitting answers to db
+	 * @param answer
+	 */
+	public async submitAnswersToDB(answer: QuizAnswer)
+	{
+		const query = new Map<string, any>();
+		const isAnswerExists = await adapterRegistry.db.primary.has(
+			{
+				userId: answer.userId,
+				quizId: answer.quizId
+			},
+			'UserQuiz'
+		)
+		if (isAnswerExists) {
+			query.set('userId', answer.userId);
+			query.set('quizId', answer.quizId);
+		}
+
+		await adapterRegistry.db.primary.save(query, answer, "UserQuiz");
+	}
+
+	private async fetchAnswersFromDB(
+		userId: mongoose.Types.ObjectId,
+		quizId: mongoose.Types.ObjectId
+	) {
+		const answer = await adapterRegistry.db.primary.findOne(
+			{
+				userId: userId,
+				quizId: quizId,
+			},
+			"UserQuiz"
+		);
+		if (answer) {
+			// Optionally, cache the answer after fetching from DB
+			await adapterRegistry.cache.primary.set(
+				this.getCacheKey(userId, quizId),
+				JSON.stringify(answer)
+			);
+			return answer as QuizAnswer[];
+		}
+		return false;
+	}
+
+	private async fetchAnswersFromCache(userId: mongoose.Types.ObjectId, quizId: mongoose.Types.ObjectId): Promise<QuizAnswer | null>
+	{
+		const cachedAnswer = await adapterRegistry.cache.primary.get( this.getCacheKey(userId, quizId) );
+		if (cachedAnswer) {
+			return JSON.parse(cachedAnswer) as QuizAnswer;
+		}
+		return null;
+	}
+
+	private async submitAnswersToCache(answer: QuizAnswer)
+	{
+		await adapterRegistry.cache.primary.set(
+			this.getCacheKey(answer.userId, answer.quizId),
+			JSON.stringify(answer)
+		);
+	}
+
+	private async streamAnswersToKafka(answer: QuizAnswer)
+	{
+		await adapterRegistry.writeStream.primary.publish("quizAnswers", answer);
+	}
+
+	private getCacheKey(
+		userId: mongoose.Types.ObjectId,
+		quizId: mongoose.Types.ObjectId
+	) {
+		return `user:${userId}:quiz:${quizId}:answer`;
+	}
 }
 
 export const quizService = new QuizService();

@@ -109,25 +109,42 @@ class PrimaryWriteStreamAdapter {
             throw new Error("WriteStream client is not initialized");
         }
 
-        const consumer = new kafkaClient.Consumer(
-            this.client,
-            [{ topic: topic, partition: 0 }],
-            { autoCommit: true }
-        );
+        try {
+            // 🔍 Check topic metadata before consuming
+            await new Promise<void>((resolve, reject) => {
+                this.client!.loadMetadataForTopics([topic], (error: any, results: any) => {
+                    if (error) {
+                        reject(new Error(`Topic "${topic}" does not exist or metadata load failed: ${error.message}`));
+                    } else {
+                        resolve();
+                    }
+                });
+            });
 
-        consumer.on('message', (message: any) => {
-            try {
-                const parsedMessage = JSON.parse(message.value);
-                callback(parsedMessage);
-            } catch (err) {
-                console.error("Error parsing message", err);
-            }
-        });
+            const consumer = new kafkaClient.Consumer(
+                this.client,
+                [{ topic: topic, partition: 0 }],
+                { autoCommit: true }
+            );
 
-        consumer.on('error', (err: any) => {
-            console.error("Error in WriteStream consumer", err);
-        });
+            consumer.on('message', (message: any) => {
+                try {
+                    const parsedMessage = JSON.parse(message.value);
+                    callback(parsedMessage);
+                } catch (err) {
+                    console.error("Error parsing message:", err);
+                }
+            });
+
+            consumer.on('error', (err: any) => {
+                console.error("Error in WriteStream consumer:", err);
+            });
+
+        } catch (err) {
+            console.error(`Failed to subscribe to topic "${topic}":`, err);
+        }
     }
+
 }
 
 export const primaryWriteStreamAdapter = new PrimaryWriteStreamAdapter();

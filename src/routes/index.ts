@@ -5,6 +5,7 @@ import { verifyAccessToken } from "../middlewares/authMiddleware"
 import cacheController from "../controllers/cacheController"
 import { Request, Response, NextFunction } from "express"
 import quizController from "../controllers/quizController"
+import questionController from "../controllers/questionController";
 
 const router = express.Router()
 
@@ -21,5 +22,8 @@ router.post('/vnode/remove', cacheController.handleRemoveVnode)
 
 router.post("/quiz/:id/answers", quizController.handleUserSubmittedQuizAnswers)
 router.get("/quiz/:id/answers", quizController.handleUserRequestedQuizAnswers)
+
+router.post("/question", questionController.saveQuestion)
+router.get("/question/:id", questionController.getQuestion)
 
 export default router

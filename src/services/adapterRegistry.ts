@@ -15,19 +15,25 @@ export const adapterRegistry = {
             isUp: async () => {
                 await adapterRegistry.db.primary.init(); // Ensure connection is initialized before checking
                 // Placeholder for DB connection check
-                return primaryDbAdapter.isServiceUp();
+                return await primaryDbAdapter.isServiceUp();
             },
             create: async (data: any, doc: string) => {
-                return primaryDbAdapter.create(data, doc);
+                return await primaryDbAdapter.create(data, doc);
             },
             update: async (dataId: any, data: any, doc: string) => {
-                return primaryDbAdapter.update(dataId, data, doc)
+                return await primaryDbAdapter.update(dataId, data, doc)
             },
             delete: async (dataId: any) => {
-                return primaryDbAdapter.delete(dataId)
+                return await primaryDbAdapter.delete(dataId)
             },
             findOne: async (query: any, doc: string) => {
-                return primaryDbAdapter.get(query, doc);
+                return await primaryDbAdapter.get(query, doc);
+            },
+            has: async (query: any, doc: string) => {
+                return await primaryDbAdapter.has(query, doc);
+            },
+            save: async (query: any, data: any, doc: string) => {
+                return await primaryDbAdapter.save(query, data, doc);
             }
         }
     },
@@ -85,7 +91,7 @@ export const adapterRegistry = {
             isUp: async () => {
                 await adapterRegistry.writeStream.primary.init(); // Ensure connection is initialized before checking
                 // Placeholder for Kafka connection check
-                return primaryWriteStreamAdapter.isServiceUp();
+                return await primaryWriteStreamAdapter.isServiceUp();
             },
             publish: async (topic: string, data: any) => {
                 return await primaryWriteStreamAdapter.publish(topic, data);

@@ -1,9 +1,11 @@
 import mongoose from "mongoose";
-import dotenv from "dotenv"
-import userQuizSchema from "../../models/schemas/userQuizSchema";
+import dotenv from "dotenv";
 import userQuizes from "../../models/userQuizes";
+import questionModel from "../../models/questionModel";
+import quizModel from "../../models/quizModel";
+import users from "../../models/users";
 
-dotenv.config()
+dotenv.config();
 
 /**
  * Primary DB adapter: MongoDB based
@@ -12,47 +14,50 @@ class PrimaryDbAdapter {
     /**
      * Primary DB adapter: MongoDB based
      */
-    private modelMap: { [key: string]: any };
+    private readonly modelMap: { [key: string]: mongoose.Model<any> };
 
     constructor() {
         this.modelMap = {
-            UserQuiz: userQuizes
+            UserQuiz: userQuizes,
+            Question: questionModel,
+            Quiz: quizModel,
+            User: users
         };
     }
 
-    async connect() {
-        const uri = <string>process.env.MONGO_DB_CONNECTION_URI;
+    async connect(): Promise<void> {
+        const uri = process.env.MONGO_DB_CONNECTION_URI;
         if (!uri) {
             console.error("ERROR! DB Connection string not found");
-            return;
+            throw new Error("DB connection URI is not defined in environment variables");
         }
 
-        const clientOptions = { serverApi: { version: "1" as const, strict: true, deprecationErrors: true } };
+        const clientOptions = {serverApi: {version: "1" as const, strict: true, deprecationErrors: true}};
 
         try {
             await mongoose.connect(uri, clientOptions);
-            await mongoose.connection.db?.admin().command({ ping: 1 });
-
+            await mongoose.connection.db?.admin().command({ping: 1});
             console.log("Successfully connected to MongoDB!");
         } catch (err) {
             console.error("DB connection error", err);
+            throw new Error("Error connecting to MongoDB");
         }
     }
 
-    getModel(modelAlias: string) {
+    getModel(modelAlias: string): mongoose.Model<any> {
         if (!this.modelMap[modelAlias]) {
             throw new Error(`Model "${modelAlias}" not found in dbAdapter.`);
         }
         return this.modelMap[modelAlias];
     }
 
-    async isConnected() {
+    async isConnected(): Promise<boolean> {
         return mongoose.connection.readyState === 1;
     }
 
-    async isServiceUp() {
+    async isServiceUp(): Promise<boolean> {
         try {
-            const result = await mongoose.connection.db?.admin().command({ ping: 1 });
+            const result = await mongoose.connection.db?.admin().command({ping: 1});
             return result?.ok === 1;
         } catch (err) {
             console.error("ERROR! DB connection failure", err);
@@ -60,10 +65,21 @@ class PrimaryDbAdapter {
         }
     }
 
-    async create(data: any, doc: string) {
+    async has(query: Record<string, any>, doc: string): Promise<boolean> {
+        try {
+            const Model = this.getModel(doc);
+            const result = await Model.findOne(query);
+            return !!result;
+        } catch (err) {
+            console.error("ERROR! Unable to check data in DB", err);
+            throw new Error("Error! Unable to check data in DB");
+        }
+    }
+
+    async create(data: Record<string, any>, doc: string): Promise<any> {
         if (!data || !doc) {
-            console.error("Invalid data provided");
-            throw new Error("Error! Invalid data provided");
+            console.error("Invalid data or document name provided");
+            throw new Error("Error! Invalid data or document name provided");
         }
 
         try {
@@ -76,15 +92,15 @@ class PrimaryDbAdapter {
         }
     }
 
-    async getAll(dataId: any) {
+    async getAll(dataId: string): Promise<any[]> {
         if (!dataId) {
-            console.error("Invalid data provided", dataId);
-            throw new Error("Error! Invalid data provided");
+            console.error("Invalid dataId provided", dataId);
+            throw new Error("Error! Invalid dataId provided");
         }
 
         try {
             const Model = this.getModel("UserQuiz");
-            const docs = await Model.find({ userId: dataId });
+            const docs = await Model.find({userId: dataId});
             if (!docs || docs.length === 0) {
                 console.error("No documents found for userId", dataId);
                 throw new Error("Error! No documents found for userId");
@@ -96,10 +112,10 @@ class PrimaryDbAdapter {
         }
     }
 
-    async get(query: any, doc: string) {
+    async get(query: Record<string, any>, doc: string): Promise<any[]> {
         if (!query || !doc) {
-            console.error("Invalid query or document provided");
-            throw new Error("Error! Invalid query or document provided");
+            console.error("Invalid query or document name provided");
+            throw new Error("Error! Invalid query or document name provided");
         }
         try {
             const Model = this.getModel(doc);
@@ -115,10 +131,10 @@ class PrimaryDbAdapter {
         }
     }
 
-    async update(dataId: any, data: any, doc: string) {
+    async update(dataId: string, data: Record<string, any>, doc: string): Promise<void> {
         if (!data || !doc) {
-            console.error("Invalid data provided");
-            throw new Error("Error! Invalid data provided");
+            console.error("Invalid data or document name provided");
+            throw new Error("Error! Invalid data or document name provided");
         }
 
         try {
@@ -129,17 +145,40 @@ class PrimaryDbAdapter {
                 throw new Error("Error! Document not found");
             }
             Object.assign(docInstance, data);
-            return await docInstance.save();
+            await docInstance.save();
         } catch (err) {
             console.error("ERROR! Unable to update data in DB", err);
             throw new Error("Error! Unable to update data in DB");
         }
     }
 
-    async delete(dataId: any) {
+    async save(query: any, data: Record<string, any>, doc: string): Promise<any> {
+        if (!data || !doc) {
+            console.error("Invalid data or document name provided");
+            throw new Error("Error! Invalid data or document name provided");
+        }
+
+        try {
+            const Model = this.getModel(doc);
+            return await Model.findOneAndUpdate(
+                query,
+                { $set: data }, // safer update structure
+                {
+                    upsert: true,
+                    new: true,
+                    setDefaultsOnInsert: true, // optional but helpful if you use defaults in your schema
+                }
+            ).exec();
+        } catch (err) {
+            console.error("ERROR! Unable to save data in DB", err);
+            throw new Error("Error! Unable to save data in DB");
+        }
+    }
+
+    async delete(dataId: string): Promise<any> {
         if (!dataId) {
-            console.error("Invalid data provided", dataId);
-            throw new Error("Error! Invalid data provided");
+            console.error("Invalid dataId provided", dataId);
+            throw new Error("Error! Invalid dataId provided");
         }
 
         try {

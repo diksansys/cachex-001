@@ -13,6 +13,10 @@ const userQuizSchema = new Schema({
         required: true,
         index: true
     },
+    questions: { // assigned questions for this user
+        type: [mongoose.Schema.Types.ObjectId],
+        required: true,
+    },
     answers: { // { QuestionID: [ answer1, answer2 ], ..so on }
         type: mongoose.Schema.Types.Mixed,
         required: false

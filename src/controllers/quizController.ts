@@ -3,6 +3,12 @@ import { quizService } from "../services/quizService"
 import mongoose from 'mongoose';
 import crypto from 'crypto';
 
+/**
+ * API: POST /quiz/:id/answers
+ *
+ * @param req
+ * @param res
+ */
 const handleUserSubmittedQuizAnswers = async (req: Request, res: Response) => 
 {
    const response = {
@@ -10,12 +16,11 @@ const handleUserSubmittedQuizAnswers = async (req: Request, res: Response) =>
         statusCode: 500,
         message: "Something went wrong",
         data: {}
-    }
+   }
 
    try {
         const answers = req.body
         const quizId = deterministicObjectId(req.params.id)
-
         const userId = getUserIdFromToken(req)
 
         if (!userId) {
@@ -60,6 +65,12 @@ const handleUserSubmittedQuizAnswers = async (req: Request, res: Response) =>
    res.status(response.statusCode).json({success: response.success, message: response.message, data: response.data})
 }
 
+/**
+ * API: GET quiz/:id/answers
+ *
+ * @param req
+ * @param res
+ */
 const handleUserRequestedQuizAnswers = async (req: Request, res: Response) => 
 {
     const response = {
@@ -99,22 +110,22 @@ const handleUserRequestedQuizAnswers = async (req: Request, res: Response) =>
    res.status(response.statusCode).json({success: response.success, message: response.message, data: response.data})
 }
 
+const deterministicObjectId = (input: string): mongoose.Types.ObjectId => {
+    // Hash the input string to a 12-byte buffer
+    const hash = crypto.createHash('md5').update(input).digest();
+
+    // md5 digest is 16 bytes, slice to 12 bytes for ObjectId
+    const buffer12 = hash.slice(0, 12);
+
+    // Create ObjectId from buffer
+    return new mongoose.Types.ObjectId(buffer12);
+}
+
+const getUserIdFromToken = (req: Request): mongoose.Types.ObjectId => {
+    return deterministicObjectId("shudhansh.shekhar.dubey"); // TO DO
+}
+
 export default {
     handleUserSubmittedQuizAnswers,
     handleUserRequestedQuizAnswers
-}
-
-function deterministicObjectId(input: string): mongoose.Types.ObjectId {
-  // Hash the input string to a 12-byte buffer
-  const hash = crypto.createHash('md5').update(input).digest();
-
-  // md5 digest is 16 bytes, slice to 12 bytes for ObjectId
-  const buffer12 = hash.slice(0, 12);
-
-  // Create ObjectId from buffer
-  return new mongoose.Types.ObjectId(buffer12);
-}
-
-function getUserIdFromToken(req: Request): mongoose.Types.ObjectId {
-    return deterministicObjectId("shudhansh.shekhar.dubey"); // TO DO
 }
