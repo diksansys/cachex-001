@@ -2,14 +2,14 @@ import express from "express";
 import dotenv from "dotenv";
 import cookieParser from "cookie-parser";
 import cors from "cors";
-import routes from "./routes/index";
-import { startupManager } from "./services/startupManager";
+import routes from "./common/routes/main.route"
+import { startupManager } from "./common/services/startup-manager.service";
 
 // Load env variables
 dotenv.config();
 
 const app = express();
-const port = process.env.BACKEND_PORT ?? 3100;
+const port = process.env.BACKEND_PORT ?? 3200;
 
 // Middleware
 app.use(express.json());
